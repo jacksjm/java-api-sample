@@ -117,6 +117,10 @@ public class Usuario implements HttpHandler {
             handleGet(exchange);
         } else if (method.equalsIgnoreCase("POST")) {
             handlePost(exchange);
+        } else if (method.equalsIgnoreCase("PUT")) {
+            handlePut(exchange);
+        } else if (method.equalsIgnoreCase("DELETE")) {
+            handleDelete(exchange);
         } else {
             String response = "Método não suportado";
             byte[] bytes = response.getBytes("UTF-8");
@@ -169,6 +173,69 @@ public class Usuario implements HttpHandler {
         exchange.sendResponseHeaders(201, bytes.length);
         try (OutputStream os = exchange.getResponseBody()) {
             os.write(bytes);
+        }
+    }
+
+    private void handlePut(HttpExchange exchange) throws IOException {
+        InputStream is = exchange.getRequestBody();
+        String body = new String(is.readAllBytes(), StandardCharsets.UTF_8);
+        
+        // Parse simples (sem Gson)
+        String idStr = body.replaceAll(".*\"id\"\\s*:\\s*\"([^\"]+)\".*", "$1");
+        int id = Integer.parseInt(idStr);
+
+        for (Usuario u : usuarios) {
+            if (u.getId() == id) {
+                String nome = body.replaceAll(".*\"nome\"\\s*:\\s*\"([^\"]+)\".*", "$1");
+                String email = body.replaceAll(".*\"email\"\\s*:\\s*\"([^\"]+)\".*", "$1");
+                String dataNascimento = body.replaceAll(".*\"dataNascimento\"\\s*:\\s*\"([^\"]+)\".*", "$1");
+                String cep = body.replaceAll(".*\"cep\"\\s*:\\s*\"([^\"]+)\".*", "$1");
+                String genero = body.replaceAll(".*\"genero\"\\s*:\\s*\"([^\"]+)\".*", "$1");
+                String senha = body.replaceAll(".*\"senha\"\\s*:\\s*\"([^\"]+)\".*", "$1");    
+
+                u.setNome(nome);
+                u.setEmail(email);
+                u.setDataNascimento(dataNascimento);
+                u.setCep(Integer.parseInt(cep));
+                u.setGenero(genero);
+                u.setSenha(senha);
+
+                String response = "{\"message\": \"Usuário atualizado com sucesso\"}";
+                byte[] bytes = response.getBytes(StandardCharsets.UTF_8);
+
+                exchange.getResponseHeaders().add("Content-Type", "application/json; charset=UTF-8");
+                exchange.sendResponseHeaders(200, bytes.length);
+                try (OutputStream os = exchange.getResponseBody()) {
+                    os.write(bytes);
+                }
+                return;
+            }
+        }
+    }
+
+    private void handleDelete(HttpExchange exchange) throws IOException {
+        InputStream is = exchange.getRequestBody();
+        String body = new String(is.readAllBytes(), StandardCharsets.UTF_8);
+        
+        // Parse simples (sem Gson)
+        String idStr = body.replaceAll(".*\"id\"\\s*:\\s*\"([^\"]+)\".*", "$1");
+        int id = Integer.parseInt(idStr);
+
+        for (int i = 0; i < usuarios.size(); i++) {
+            Usuario u = usuarios.get(i);
+            if (u.getId() == id) {
+                usuarios.remove(i);
+
+                String response = "{\"message\": \"Usuário deletado com sucesso\"}";
+                byte[] bytes = response.getBytes(StandardCharsets.UTF_8);
+
+                exchange.getResponseHeaders().add("Content-Type", "application/json; charset=UTF-8");
+                exchange.sendResponseHeaders(200, bytes.length);
+                try (OutputStream os = exchange.getResponseBody()) {
+                    os.write(bytes);
+                }
+                return;
+            }
         }
     }
     
