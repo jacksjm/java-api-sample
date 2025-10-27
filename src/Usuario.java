@@ -136,7 +136,7 @@ public class Usuario implements HttpHandler {
         StringBuilder json = new StringBuilder("[");
         for (int i = 0; i < usuarios.size(); i++) {
             Usuario u = usuarios.get(i);
-            json.append(String.format("{\"id\": \"%s\",\"nome\": \"%s\",\"email\": \"%s\",\"cep\": \"%s\",\"genero\": \"%s\",\"senha\": \"%s\",\"dataNascimento\": \"%s\",\"dataInscricao\": \"%s\"}",
+            json.append(String.format("{\"id\": %s,\"nome\": \"%s\",\"email\": \"%s\",\"cep\": \"%s\",\"genero\": \"%s\",\"senha\": \"%s\",\"dataNascimento\": \"%s\",\"dataInscricao\": \"%s\"}",
                     u.getId(), u.getNome(), u.getEmail(), u.getCep(), u.getGenero(), u.getSenha(), u.getDataNascimento(), u.getDataInscricao()));
             if (i < usuarios.size() - 1) json.append(",");
         }
@@ -152,7 +152,7 @@ public class Usuario implements HttpHandler {
 
     private void handlePost(HttpExchange exchange) throws IOException {
         InputStream is = exchange.getRequestBody();
-        String body = new String(is.readAllBytes(), StandardCharsets.UTF_8);
+        String body = (new String(is.readAllBytes(), StandardCharsets.UTF_8)).replaceAll("\\s*([{}:,])\\s*", "$1").replaceAll("\\s+", " ");
 
         // Parse simples (sem Gson)
         // Exemplo: {"nome": "Tadeu", "email": "tadeu@mail.com", "dataNascimento": "01/01/1990", "cep": "89205035", "genero": "Masculino", "senha": "123456"}
@@ -176,16 +176,54 @@ public class Usuario implements HttpHandler {
         }
     }
 
-    private void handlePut(HttpExchange exchange) throws IOException {
-        InputStream is = exchange.getRequestBody();
-        String body = new String(is.readAllBytes(), StandardCharsets.UTF_8);
-        
+    private int checkId(HttpExchange exchange, String body) throws IOException {       
         // Parse simples (sem Gson)
-        String idStr = body.replaceAll(".*\"id\"\\s*:\\s*\"([^\"]+)\".*", "$1");
-        int id = Integer.parseInt(idStr);
+        String idStr = body.replaceAll("(?s).*\"id\"\\s*:\\s*\"?(\\d+)\"?.*", "$1");
+        try {
+            id = Integer.parseInt(idStr);
+        } catch (NumberFormatException e) {
+            String response = "{\"error\": \"ID inválido\"}";
+            byte[] bytes = response.getBytes(StandardCharsets.UTF_8);
+
+            exchange.getResponseHeaders().add("Content-Type", "application/json; charset=UTF-8");
+            exchange.sendResponseHeaders(400, bytes.length);
+            try (OutputStream os = exchange.getResponseBody()) {
+                os.write(bytes);
+            } catch (IOException exception) {
+                return 0;
+            }
+            return 0;
+        }
 
         for (Usuario u : usuarios) {
             if (u.getId() == id) {
+                return id;
+            }
+        }
+
+        String response = "{\"error\": \"Usuário não encontrado\"}";
+        byte[] bytes = response.getBytes(StandardCharsets.UTF_8);
+
+        exchange.getResponseHeaders().add("Content-Type", "application/json; charset=UTF-8");
+        exchange.sendResponseHeaders(404, bytes.length);
+        try (OutputStream os = exchange.getResponseBody()) {
+            os.write(bytes);
+            return 0;
+        } catch (IOException e) {
+            return 0;
+        }
+    }
+
+    private void handlePut(HttpExchange exchange) throws IOException {
+        InputStream is = exchange.getRequestBody();
+        String body = (new String(is.readAllBytes(), StandardCharsets.UTF_8)).replaceAll("\\s*([{}:,])\\s*", "$1").replaceAll("\\s+", " ");
+        
+        Integer id = this.checkId(exchange, body);
+        if (id == 0) return;
+
+        for (Usuario u : usuarios) {
+            if (u.getId() == id) {
+                // Parse simples (sem Gson)
                 String nome = body.replaceAll(".*\"nome\"\\s*:\\s*\"([^\"]+)\".*", "$1");
                 String email = body.replaceAll(".*\"email\"\\s*:\\s*\"([^\"]+)\".*", "$1");
                 String dataNascimento = body.replaceAll(".*\"dataNascimento\"\\s*:\\s*\"([^\"]+)\".*", "$1");
@@ -215,11 +253,10 @@ public class Usuario implements HttpHandler {
 
     private void handleDelete(HttpExchange exchange) throws IOException {
         InputStream is = exchange.getRequestBody();
-        String body = new String(is.readAllBytes(), StandardCharsets.UTF_8);
-        
-        // Parse simples (sem Gson)
-        String idStr = body.replaceAll(".*\"id\"\\s*:\\s*\"([^\"]+)\".*", "$1");
-        int id = Integer.parseInt(idStr);
+        String body = (new String(is.readAllBytes(), StandardCharsets.UTF_8)).replaceAll("\\s*([{}:,])\\s*", "$1").replaceAll("\\s+", " ");
+
+        Integer id = this.checkId(exchange, body);
+        if (id == 0) return;
 
         for (int i = 0; i < usuarios.size(); i++) {
             Usuario u = usuarios.get(i);
